@@ -62,6 +62,3 @@ class HeatmapGenerator():
                 self.extract_info(clue, page_name, retrieve_num, read_num)
         
         print(self.unit_freq)
-
-generator = HeatmapGenerator(DPR_Retriever('paragraph'), Reader(), 'paragraph')
-generator.get_page_heatmap("Osmosis")

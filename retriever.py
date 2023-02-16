@@ -123,5 +123,3 @@ class DPR_Retriever(Retriever):
     def unit(self):
         return self.unit
 
-
-

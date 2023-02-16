@@ -1,0 +1,4 @@
+INFO:root:Starting
+INFO:root:Loading dataframe from qanta.train.2018.04.18.json.
+INFO:root:Only looking at MS questions.
+INFO:root:Finished
