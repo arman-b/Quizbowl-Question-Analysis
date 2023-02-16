@@ -1,6 +1,25 @@
 import json
 import pandas as pd
-data = json.load(open("qanta.train.2018.04.18.json"))
-df = pd.json_normalize(data["questions"])
-df = df[df["difficulty"] == "MS"]
-print(df[df["page"] == "Osmosis"])
+import logging
+from reader import Reader
+from retriever import DPR_Retriever
+from heatmap_generator import HeatmapGenerator
+
+def main():
+    logging.basicConfig(filename='tester.log', level=logging.INFO)
+    logging.info('Starting')
+    logging.info("Loading dataframe from qanta.train.2018.04.18.json.")
+    data = json.load(open("qanta.train.2018.04.18.json"))
+    df = pd.json_normalize(data["questions"])
+    logging.info("Only looking at MS questions.")
+    # df = df[df["difficulty"] == "MS"]
+    # print(df[df["page"] == "Osmosis"])
+
+    generator = HeatmapGenerator(DPR_Retriever('paragraph'), Reader(), 'paragraph')
+    generator.get_page_heatmap("Osmosis")
+    
+    logging.info('Finished')
+
+if __name__ == '__main__':
+    main()
+
