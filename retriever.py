@@ -3,15 +3,10 @@ from typing import List
 import json
 
 class Retriever(ABC):
-
     @abstractmethod
     def retrieve(self, query, num_results=10):
         pass
     
-    @abstractmethod
-    def read(self, query, num_results=10):
-        pass
-
     @property
     @abstractmethod
     def contexts(self):
@@ -19,23 +14,31 @@ class Retriever(ABC):
     
     @property
     @abstractmethod
-    def metrics(self) -> List[str]:
+    def unit(self) -> str:
         pass
-
-    @metrics.setter
-    @abstractmethod
-    def metrics(self) -> List[str]:
-        pass
-
+    
 # class RC_Retriever(Retriever):
 #     def __init__(self) -> None:
-#         self._metrics = ["chunk", "starting index character"]
+#         self._units = ["chunk", "starting index character"]
 
 # FOLLOW OOD 
 class DPR_Retriever(Retriever):
-    def __init__(self):
-        # Metrics
-        self._metrics = ["sentence", "chunk", "paragraph"]
+    
+    def _chunkz(text, size=512, stride=430):
+        chunks = []
+        start, end = 0, size
+        
+        while end < len(text):
+            chunks.append(text[start:end])
+            start += stride
+            end += stride
+        
+        chunks.append(text[start:-1])
+        return chunks
+        
+    def __init__(self, unit):
+        # units
+        self.unit = unit
         # Set up elasticsearch
         es_user = "elastic"
         es_password = "vqyxbiHqq=jbB4l2JqPZ"
@@ -49,10 +52,9 @@ class DPR_Retriever(Retriever):
             verify_certs=False,
             ssl_show_warn=False
         )
-
-        # Ensure ES is running
         if (self.es is not None and self.es.ping() and
                 self.es.cluster.health()['status'] in ['yellow', 'green']):
+        # Ensure ES is running        
             self.doc_store = ElasticsearchDocumentStore(
                 host = "localhost",
                 port = 9200,
@@ -60,64 +62,43 @@ class DPR_Retriever(Retriever):
                 username = es_user,
                 password = es_password,
                 verify_certs = False,
-                index = "test"
+                index = self.unit
             )
 
             with open("wiki_lookup.json", "r") as f:
                 wiki_json = json.loads(f.read())
 
+            
             data_json = []
+            #to-do: add all articles from the wiki in the docstore, for article in wiki_json:
             article = "Osmosis"
-            pgs = wiki_json[article]['text'].split('\n\n')[1:]
-            num_pgs = len(pgs)
-
-            for i, paragraph in enumerate(pgs):
+            if self.unit == "paragraph":
+                doc_list = wiki_json[article]['text'].split('\n\n')[1:]
+            elif self.unit == "sentence":
+                from nltk.tokenize import sent_tokenize
+                doc_list = sent_tokenize(wiki_json[article]['text'])[1:]
+            elif self.unit == "chunk":
+                raise Exception("unimplemented")
+            else:
+                raise Exception("not valid unit, choose one of [paragraph, sentence, chunk]")
+            for i, self.unit in enumerate(doc_list):
                 dict_to_add =\
                     {
-                        'content': paragraph,
+                        'content': self.unit,
                         'meta': {
                             'source': wiki_json[article]['title'],
                             'id': wiki_json[article]['id'],
-                            'paragraph_number': i,
-                            'paragraph_number_norm': i/num_pgs
+                            'unit_number': i,
+                            'unit_number_norm': i/len(doc_list)
                         }
                     }
                 data_json.append(dict_to_add)
-            print(data_json)
             self.doc_store.write_documents(data_json, duplicate_documents="skip")
-            print(self.retrieve('When was the observation of osmosis first documented?', 10))
-            print(self.read('When was the observation of osmosis first documented?', 10, 5))
-            # for article in wiki_json:
-            #     pgs = wiki_json[article]['text'].split('\n\n')
-            #     num_pgs = len(pgs)
-
-            #     for i, paragraph in enumerate(pgs):
-            #         dict_to_add =\
-            #             {
-            #                 'content': paragraph,
-            #                 'meta': {
-            #                     'source': wiki_json[article]['title'],
-            #                     'id': wiki_json[article]['id'],
-            #                     'paragraph_number': i,
-            #                     'paragraph_number_norm': i/num_pgs
-            #                 }
-            #             }
-            #         data_json.append(dict_to_add)
-            
-            # doc_store.write_documents(data_json)
-
+            self.retrieve()
         else:
             raise("Elasticsearch cluster error")
 
-        # Add indexes to elastic search
-        # Idea: create different indexes for sentence, chunks, paragraphs
-            # Must include meta data for each document (Wiki page, sentence/chunks/paragraphs (normalized and unnormalized))
-                # Sentence = sent tokenizer
-                # Chunks = already written
-                # Paragraph = split by \n\n
-            # Wikipedia is 500 MB --> Doing all 3 segmentations should be 1.5 GB total
-
-    def retrieve(self, query, num_results=10):
+    def retrieve(self, num_results=10):
         from haystack.nodes import DensePassageRetriever
         self.retriever = DensePassageRetriever(
             document_store=self.doc_store,
@@ -128,31 +109,13 @@ class DPR_Retriever(Retriever):
             embed_title=True
         )
         self.doc_store.update_embeddings(retriever=self.retriever)
-        return self.retriever.retrieve(query)
-    
-    def read(self, query, retrieve_num=10, read_num=5):
-        from haystack.nodes import FARMReader
-        from haystack.pipelines import ExtractiveQAPipeline
-        self.reader = FARMReader(model_name_or_path="deepset/roberta-base-squad2", use_gpu=True)
-        pipe = ExtractiveQAPipeline(self.reader, self.retriever)
-        return pipe.run(
-            query=query,
-            params={
-                "Retriever": {"top_k": retrieve_num},
-                "Reader": {"top_k": read_num}
-            }
-        )
-        
+        # return self.retriever.retrieve(query)
 
-    
     def contexts(self):
         return self.es # maybe es.indexes() or smth
 
-    def metrics(self) -> List[str]:
-        self._metrics
-
-    def metrics(self, metrics: List[str]) -> List[str]:
-        self._metrics = metrics
+    def unit(self):
+        return self.unit
 
 
 
