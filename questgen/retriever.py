@@ -35,7 +35,7 @@ class DPR_Retriever(Retriever):
 
         # Set up elasticsearch
         es_user = "elastic"
-        es_password = "RZJVsRjjv7ZeD6lezInf" # "vqyxbiHqq=jbB4l2JqPZ"
+        es_password = "vqyxbiHqq=jbB4l2JqPZ"#"RZJVsRjjv7ZeD6lezInf" # "vqyxbiHqq=jbB4l2JqPZ"
 
         logger.info("Attempting to connect to Elasticsearch on port 9200.")
         self.es = Elasticsearch(
@@ -59,40 +59,42 @@ class DPR_Retriever(Retriever):
                 index = self.unit
             )
 
-            with open("wiki_lookup.json", "r") as f:
+            with open("data/wiki_lookup.json", "r") as f:
                 wiki_json = json.loads(f.read())
 
             
             data_json = []
             #to-do: add all articles from the wiki in the docstore, for article in wiki_json:
-            article = "Osmosis"
-            if self.unit == "paragraph":
-                doc_list = wiki_json[article]['text'].split('\n\n')[1:]
-            elif self.unit == "sentence":
-                from nltk.tokenize import sent_tokenize
-                doc_list = sent_tokenize(wiki_json[article]['text'])[1:]
-            elif self.unit == "chunk":
-                raise Exception("Dividing article into chunks is not implemented.")
-            else:
-                raise Exception("Not valid unit, choose one of [paragraph, sentence, chunk]")
-            
-            logger.info(f"Adding embeddings for article {article}.")
-            for i, doc in enumerate(doc_list):
-                logger.debug(f"Adding {unit} {i}/{len(doc_list)}: {doc}")
-                dict_to_add =\
-                    {
-                        'content': doc,
-                        'meta': {
-                            'source': wiki_json[article]['title'],
-                            'id': wiki_json[article]['id'],
-                            'unit_number': i,
-                            'unit_number_norm': i/len(doc_list)
+            articles = ["Osmosis", "Mars", "Photon", "Belgium", "Jupiter"]
+            #article = "Osmosis"
+            for article in articles:   
+                if self.unit == "paragraph":
+                    doc_list = wiki_json[article]['text'].split('\n\n')[1:]
+                elif self.unit == "sentence":
+                    from nltk.tokenize import sent_tokenize
+                    doc_list = sent_tokenize(wiki_json[article]['text'])[1:]
+                elif self.unit == "chunk":
+                    raise Exception("Dividing article into chunks is not implemented.")
+                else:
+                    raise Exception("Not valid unit, choose one of [paragraph, sentence, chunk]")
+                
+                logger.info(f"Adding embeddings for article {article}.")
+                for i, doc in enumerate(doc_list):
+                    logger.debug(f"Adding {unit} {i}/{len(doc_list)}: {doc}")
+                    dict_to_add =\
+                        {
+                            'content': doc,
+                            'meta': {
+                                'source': wiki_json[article]['title'],
+                                'id': wiki_json[article]['id'],
+                                'unit_number': i,
+                                'unit_number_norm': i/len(doc_list)
+                            }
                         }
-                    }
-                data_json.append(dict_to_add)
-            
-            logger.info(f"Attempting to write all {len(doc_list)} documents.")
-            self.doc_store.write_documents(data_json, duplicate_documents="skip", index=self.unit)
+                    data_json.append(dict_to_add)
+                
+                logger.info(f"Attempting to write all {len(doc_list)} documents.")
+                self.doc_store.write_documents(data_json, duplicate_documents="skip", index=self.unit)
             self.haystack_retriever = DensePassageRetriever(
                 document_store=self.doc_store,
                 query_embedding_model='facebook/dpr-question_encoder-single-nq-base',
@@ -101,9 +103,7 @@ class DPR_Retriever(Retriever):
                 use_gpu=True,
                 embed_title=True
             )
-
-            self.doc_store.update_embeddings(retriever=self.haystack_retriever,
-                update_existing_embeddings=False)
+            self.doc_store.update_embeddings(retriever=self.haystack_retriever)
         else:
             raise("Elasticsearch cluster error")
         

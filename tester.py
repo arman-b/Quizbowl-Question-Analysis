@@ -16,8 +16,10 @@ def main():
     # print(df[df["page"] == "Osmosis"])
 
     generator = HeatmapGenerator(DPR_Retriever('paragraph'), Reader(), 'paragraph')
-    generator.get_page_heatmap("Osmosis")
-    
+    articles = ["Osmosis", "Mars", "Belgium", "Jupiter"]
+    for article in articles:
+        generator.get_page_heatmap(article)
+        
     logging.info('Finished')
 
 if __name__ == '__main__':
