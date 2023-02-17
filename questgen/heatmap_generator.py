@@ -1,18 +1,20 @@
 import json
-from reader import Reader
-from retriever import Retriever, DPR_Retriever
+from .reader import Reader
+from .retriever import Retriever, DPR_Retriever
 import pandas as pd
 from haystack.pipelines import ExtractiveQAPipeline
 import logging
+
+logger = logging.getLogger(__name__)
 
 class HeatmapGenerator():
     def __init__(self, retriever:Retriever, reader:Reader, unit:str='paragraph'):
         self.unit = unit
         self.pipeline = ExtractiveQAPipeline(reader.haystack_reader, retriever.haystack_retriever)
 
-        data = json.load(open("qanta.train.2018.04.18.json"))
+        data = json.load(open("data/qanta.train.2018.04.18.json"))
         self.df = pd.json_normalize(data["questions"])
-        wiki = json.load(open("wiki_lookup.json"))
+        wiki = json.load(open("data/wiki_lookup.json"))
         self.df = self.df[self.df["difficulty"] == "MS"]
         drop_indices = []
         
@@ -31,20 +33,20 @@ class HeatmapGenerator():
                     }
             )
         
-        logging.debug(f"Running query: {query}")
-        logging.debug(f"\tAnswer: {answer}")
-        logging.debug(f"\tResult: {res}\n\n")
-        print(query)
-        print(answer)
-        print(res)
-        print("\n\n\n")
+        logger.debug(f"Running query: {query}")
+        logger.debug(f"\tAnswer: {answer}")
+        logger.debug(f"\tResult: {res}\n\n")
+        # print(query)
+        # print(answer)
+        # print(res)
+        # print("\n\n\n")
 
         answers = [x.to_dict() for x in res['answers']]
         for ans in answers:
             if ans['answer'] == answer:
                 correct_unit_num = ans['meta']['unit_number']
-                logging.debug(f"\tCorrect context (part of article): {ans['context']}")
-                logging.debug(f"\tCorrect {self.unit}: {correct_unit_num}")
+                logger.debug(f"\tCorrect context (part of article): {ans['context']}")
+                logger.debug(f"\tCorrect {self.unit}: {correct_unit_num}")
 
                 if correct_unit_num not in self.unit_freq:
                     self.unit_freq[correct_unit_num] = 1
